@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LaundryPro Pakistan</title>
+<style>
+:root{--ink:#13303B;--bg:#F2F7F7;--card:#fff;--line:#D7E3E4;--muted:#5F7A82;--brand:#0E7C86;--soap:#F2B632;--coral:#D6453D;--hd:#13303B;--hdt:#fff;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--ink:#E6F1F2;--bg:#0E1A1F;--card:#16262D;--line:#27404A;--muted:#8FAAB1;--brand:#1D97A3;--hd:#0A1317;color-scheme:dark}}
+:root[data-theme="dark"]{--ink:#E6F1F2;--bg:#0E1A1F;--card:#16262D;--line:#27404A;--muted:#8FAAB1;--brand:#1D97A3;--hd:#0A1317;color-scheme:dark}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px}
+#app{display:flex;flex-direction:column;height:100%}
+main{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.hd{background:var(--hd);color:var(--hdt);margin:-16px -16px 0;padding:20px}
+.hd h1{margin:0;font-size:22px}.hd .big{font-size:32px;font-weight:800;color:var(--soap);margin-top:8px}.hd small{opacity:.7}
+h2{margin:0;font-size:24px}
+.card{background:var(--card);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px;border-left:5px solid transparent}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.t{border-left-color:var(--brand)}.t b{font-size:21px}.y{border-left-color:var(--soap)}.r{border-left-color:var(--coral)}
+.m{color:var(--muted);font-size:14px}
+input,select{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:16px;width:100%;box-sizing:border-box}
+button{background:var(--brand);color:#fff;border:0;border-radius:12px;padding:14px;font-size:17px;font-weight:700}
+button.s{padding:8px 14px;font-size:14px}button.c{background:var(--coral)}button.y{background:var(--soap);color:#13303B}button.g{background:var(--muted)}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:20px;padding:8px 12px;font-size:15px;font-weight:400}
+.chip.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+nav{display:flex;overflow-x:auto;background:var(--card);border-top:1px solid var(--line)}
+nav button{flex:1 0 auto;background:none;color:var(--muted);border-radius:0;padding:14px 12px;font-size:14px;font-weight:500}
+nav button.on{color:var(--brand);font-weight:800}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#13303B">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+<div id="app"><main id="v"></main><nav id="nav"></nav></div>
+<script>
+const K='laundrypro_web_v1';
+let S=null;try{S=JSON.parse(localStorage.getItem(K))}catch(e){}
+S=S||{customers:[],rates:[],orders:[],expenses:[]};S.expenses=S.expenses||[];
+const save=()=>{try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}};
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pkr=n=>'Rs '+Number(n).toLocaleString('en-PK');
+const SV={wash:'Dhulai',iron:'Istri',dry_clean:'Dry clean'};
+const ST=['received','washing','ready','delivered'];
+const SL={received:'Mausool',washing:'Dhulai mein',ready:'Tayyar',delivered:'Delivered'};
+const paid=o=>o.pay.reduce((s,p)=>s+p.a,0);
+const tag=c=>{const w=(c.name||'').trim().split(/\s+/)[0]||'',d=String(c.phone||'').replace(/\D/g,'').slice(-3);return d.length===3?w+'-'+d:w};
+const codeOf=id=>tag(S.customers.find(c=>c.id===id)||{});
+const dupTag=c=>S.customers.some(x=>x.id!==c.id&&tag(x)&&tag(x).toLowerCase()===tag(c).toLowerCase());
+const pv=()=>{const e=document.getElementById('cc');if(e)e.textContent=tag({name:val('cn'),phone:val('cp')})||'-'};
+const day0=()=>{const d=new Date();d.setHours(0,0,0,0);return d.getTime()};
+const val=id=>document.getElementById(id).value.trim();
+let tab='home',D={cid:'',q:{},k:false,adv:''},ER=null,EC=null,BID=null;
+const go=t=>{tab=t;ER=null;EC=null;if(t==='new')D={cid:'',q:{},k:false,adv:''};render();up()};
+const up=()=>{document.getElementById('v').scrollTop=0};
+
+function home(){
+  const t0=day0(),O=S.orders;
+  const inc=O.flatMap(o=>o.pay).filter(p=>p.at>=t0).reduce((s,p)=>s+p.a,0);
+  const ud=O.reduce((s,o)=>s+o.total-paid(o),0);
+  const tile=(l,x,c)=>`<div class="card t ${c||''}"><span class="m">${l}</span><b>${x}</b></div>`;
+  return `<div class="hd"><h1>LaundryPro Pakistan</h1><div class="big">${pkr(inc)}</div><small>Aaj ki wasooli</small></div>
+  <button onclick="go('new')">Naya order</button>
+  <div class="grid">${tile('Aaj ke orders',O.filter(o=>o.at>=t0).length)}${tile('Pending',O.filter(o=>o.status==='received'||o.status==='washing').length,'y')}
+  ${tile('Delivery ke liye tayyar',O.filter(o=>o.status==='ready').length)}${tile('Udhaar baqaya',pkr(ud),'r')}
+  ${tile('Aaj ka kharcha',pkr(S.expenses.filter(e=>e.at>=t0).reduce((s,e)=>s+e.a,0)),'r')}${tile('Wasooli minus kharcha',pkr(inc-S.expenses.filter(e=>e.at>=t0).reduce((s,e)=>s+e.a,0)))}</div>
+  <p class="m">Pehle Rates aur Customers add karein, phir Naya order banayein. Data sirf is browser mein save hota hai.</p>
+  ${S.orders.length&&(!S.lb||Date.now()-S.lb>6048e5)?'<p style="color:var(--coral);margin:0">Aap ne haal mein backup nahi liya. Neeche Backup / Restore se backup le lein.</p>':''}
+  <button class="s g" onclick="RC=false;BM='';go('backup')">Backup / Restore</button>`;
+}
+function customers(){
+  const e=S.customers.find(c=>c.id===EC)||{};
+  return `<h2>Customers</h2><div class="card"><input id="cn" placeholder="Naam" value="${esc(e.name||'')}" oninput="pv()"><input id="cp" type="tel" placeholder="Phone" value="${esc(e.phone||'')}" oninput="pv()"><span class="m">Suit code (kapron par yeh likhein): <b id="cc" style="font-size:20px;color:var(--ink)">${esc(tag(e)||'-')}</b></span><button onclick="addC()">${EC?'Update karein':'Customer save karein'}</button>${EC?'<button class="s g" onclick="EC=null;render()">Cancel</button>':''}</div>
+  ${S.customers.length?'':'<p class="m">Abhi koi customer nahi.</p>'}
+  ${S.customers.map(c=>`<div class="card"><b>${esc(c.name)}</b><span class="m">${esc(c.phone||'')}</span><span>Suit code: <b>${esc(tag(c))}</b></span>${dupTag(c)?'<span class="m">Dhyan: kisi aur customer ka code bhi yahi hai.</span>':''}<span class="m">${cs(c.id).n} order | baqaya ${pkr(cs(c.id).d)}</span><div class="row"><button class="s y" onclick="CV='${c.id}';go('cust')">Orders aur hisaab</button><button class="s" onclick="EC='${c.id}';render();up()">Edit</button></div></div>`).join('')}`;
+}
+function addC(){const n=val('cn');if(!n)return;if(EC){Object.assign(S.customers.find(x=>x.id===EC),{name:n,phone:val('cp')});EC=null}else S.customers.push({id:uid(),name:n,phone:val('cp')});save();render()}
+function rates(){
+  const e=S.rates.find(r=>r.id===ER)||{};
+  return `<h2>Rate list</h2><div class="card"><input id="rg" placeholder="Item (jaise Shalwar Kameez)" value="${esc(e.g||'')}">
+  <select id="rs">${Object.entries(SV).map(([k,l])=>`<option value="${k}"${e.s===k?' selected':''}>${l}</option>`).join('')}</select>
+  <input id="rp" type="number" inputmode="numeric" placeholder="Rate (Rs)" value="${e.p||''}"><input id="rk" type="number" inputmode="numeric" placeholder="Kalaf charge (Rs, optional)" value="${e.k||''}">
+  <button onclick="addR()">${ER?'Update karein':'Rate save karein'}</button>${ER?'<button class="s g" onclick="ER=null;render()">Cancel</button>':''}</div>
+  ${S.rates.length?'':'<p class="m">Abhi koi rate nahi.</p>'}
+  ${S.rates.map(r=>`<div class="card"><b>${esc(r.g)} - ${SV[r.s]}</b><span class="m">${pkr(r.p)}${r.k?' | kalaf '+pkr(r.k):''}</span><div class="row"><button class="s" onclick="editR('${r.id}')">Edit</button><button class="s c" onclick="delR('${r.id}')">Hata dein</button></div></div>`).join('')}`;
+}
+function addR(){const g=val('rg'),p=Math.round(Number(val('rp')));if(!g||!(p>0))return;const k=Math.round(Number(val('rk'))||0);if(ER){Object.assign(S.rates.find(x=>x.id===ER),{g,s:val('rs'),p,k});ER=null}else S.rates.push({id:uid(),g,s:val('rs'),p,k});save();render()}
+function editR(id){ER=id;render();up()}
+function delR(id){S.rates=S.rates.filter(r=>r.id!==id);save();render()}
+function orders(){
+  const nm=id=>(S.customers.find(c=>c.id===id)||{name:'?'}).name;
+  return `<h2>Orders</h2><button onclick="go('new')">Naya order</button>${S.orders.length?'':'<p class="m">Abhi koi order nahi.</p>'}
+  ${[...S.orders].reverse().map(o=>{const d=o.total-paid(o);return `<div class="card"><b>${esc(nm(o.cid))} - ${SL[o.status]}</b><span class="m">Suit code: ${esc(codeOf(o.cid))}</span>
+  <span class="m">Total ${pkr(o.total)} | Mila ${pkr(paid(o))} | Baqaya ${pkr(d)}</span>
+  <button class="s g" onclick="BID='${o.id}';go('bill')">Bill dekhein</button>
+  ${o.status!=='delivered'?`<button class="s" onclick="nextS('${o.id}')">Agla status</button>`:''}
+  ${o.status==='delivered'&&d>0?`<span style="color:var(--coral)">Delivered, baqaya baqi${o.promise?' | wada: '+new Date(o.promise).toLocaleDateString('en-GB')+(o.promise<day0()?' (guzar gaya)':''):''}</span><button class="s" onclick="DL='${o.id}';render()">Wada tareekh / hisaab</button>`:''}
+  ${DL===o.id?dlPanel(o):''}
+  ${d>0?`<button class="s y" onclick="payD('${o.id}')">Baqaya ${pkr(d)} wasool</button>`:''}</div>`}).join('')}`;
+}
+let DL=null;
+function nextS(id){const o=S.orders.find(x=>x.id===id),n=ST[ST.indexOf(o.status)+1];if(n==='delivered'&&o.total>paid(o)){DL=id;render();return}o.status=n;save();render()}
+const dlPanel=o=>`<div class="card" style="background:var(--bg)"><b>${o.status==='delivered'?'Baqaya ka hisaab':'Delivery'} - baqaya ${pkr(o.total-paid(o))}</b><input id="da" type="number" inputmode="numeric" placeholder="Abhi kitna mila (Rs), kuch nahi to khali"><span class="m">Baqaya kab dega (optional):</span><input id="dd" type="date" value="${o.promise?new Date(o.promise).toLocaleDateString('en-CA'):''}"><button onclick="dlSave('${o.id}')">${o.status==='delivered'?'Save karein':'Delivery karein'}</button><button class="s g" onclick="DL=null;render()">Cancel</button></div>`;
+function dlSave(id){const o=S.orders.find(x=>x.id===id),due=o.total-paid(o);let a=Math.round(Number(val('da'))||0);if(a<0)return;a=Math.min(a,due);if(a>0)o.pay.push({a,at:Date.now()});const dv=document.getElementById('dd').value;if(o.total>paid(o)&&dv)o.promise=new Date(dv+'T00:00:00').getTime();else delete o.promise;o.status='delivered';DL=null;save();render()}
+function payD(id){const o=S.orders.find(x=>x.id===id);o.pay.push({a:o.total-paid(o),at:Date.now()});save();render()}
+const kal=r=>!D.k?0:(D.kv&&D.kv[r.id]!==undefined?Math.round(Number(D.kv[r.id])||0):r.k);
+const lt=r=>(D.q[r.id]||0)*(r.p+kal(r));
+const tot=()=>S.rates.reduce((s,r)=>s+lt(r),0);
+const adv=()=>Math.round(Number(D.adv)||0);
+function newOrder(){
+  return `<h2>Naya order</h2>${S.customers.length&&S.rates.length?'':'<p class="m">Pehle kam az kam ek customer aur ek rate add karein.</p>'}
+  <b>Customer</b><div class="row">${S.customers.map(c=>`<button class="chip ${D.cid===c.id?'on':''}" onclick="D.cid='${c.id}';render()">${esc(c.name)} (${esc(tag(c))})</button>`).join('')}</div>
+  <b>Items</b>${S.rates.map(r=>`<div class="card"><b>${esc(r.g)} - ${SV[r.s]} (${pkr(r.p)})</b><div class="row"><button class="s" onclick="stp('${r.id}',-1)">-</button><b>${D.q[r.id]||0}</b><button class="s" onclick="stp('${r.id}',1)">+</button></div>${D.k&&D.q[r.id]>0?`<input type="number" inputmode="numeric" placeholder="Kalaf per piece (Rs)" value="${kal(r)||''}" oninput="(D.kv=D.kv||{})['${r.id}']=this.value;upd()">`:''}</div>`).join('')}
+  <div class="row"><button class="chip ${D.k?'on':''}" onclick="D.k=!D.k;render()">Kalaf lagayen</button>${D.k?'<span class="m">Jis item par kalaf lagana hai, uske neeche per piece rate likhein.</span>':''}</div>
+  <input type="number" inputmode="numeric" placeholder="Advance (Rs)" value="${esc(D.adv)}" oninput="D.adv=this.value;upd()">
+  <div class="card" id="sum"></div><button id="sv" onclick="saveO()">Order save karein</button><button class="g s" onclick="go('home')">Wapas</button>`;
+}
+const stp=(id,d)=>{D.q[id]=Math.max(0,(D.q[id]||0)+d);render()};
+const ok=()=>D.cid&&tot()>0&&adv()<=tot();
+function upd(){const s=document.getElementById('sum');if(!s)return;
+  s.innerHTML=`<b>Total: ${pkr(tot())}</b><span class="m">Advance: ${pkr(adv())} | Udhaar: ${pkr(Math.max(0,tot()-adv()))}</span>${adv()>tot()?'<span class="m">Advance total se zyada nahi ho sakta.</span>':''}`;
+  document.getElementById('sv').style.opacity=ok()?1:.5}
+function saveO(){if(!ok())return;
+  const items=S.rates.filter(r=>D.q[r.id]>0).map(r=>({g:r.g,s:r.s,q:D.q[r.id],r:r.p,k:kal(r)}));
+  S.orders.push({id:uid(),cid:D.cid,status:'received',total:tot(),at:Date.now(),items,pay:adv()>0?[{a:adv(),at:Date.now()}]:[]});
+  save();go('orders')}
+const dt=o=>new Date(o.at).toLocaleDateString('en-GB');
+function billText(o){const c=S.customers.find(x=>x.id===o.cid)||{name:'?'};
+  return ['LaundryPro Pakistan','Bill #'+(S.orders.indexOf(o)+1)+' | '+dt(o),'Customer: '+c.name,'Suit code: '+tag(c),'',...o.items.map(i=>i.q+' x '+i.g+' ('+SV[i.s]+') @ '+i.r+(i.k?' + kalaf '+i.k:'')+' = '+i.q*(i.r+i.k)),'','Total: '+pkr(o.total),'Mila: '+pkr(paid(o)),'Baqaya: '+pkr(o.total-paid(o))].join('\n')}
+function bill(){const o=S.orders.find(x=>x.id===BID);if(!o)return '<button onclick="go(\'orders\')">Wapas</button>';
+  const c=S.customers.find(x=>x.id===o.cid)||{name:'?'},d=o.total-paid(o),rw='display:flex;justify-content:space-between;gap:8px';
+  return `<h2>Bill #${S.orders.indexOf(o)+1}</h2><div class="card"><b>LaundryPro Pakistan</b><span class="m">${dt(o)} | ${esc(c.name)}${c.phone?' | '+esc(c.phone):''}</span><div style="font-size:20px">Suit code: <b>${esc(tag(c))}</b></div>
+  ${o.items.map(i=>`<div style="${rw}"><span>${i.q} x ${esc(i.g)} (${SV[i.s]})<br><span class="m">${pkr(i.r)}${i.k?' + kalaf '+pkr(i.k):''}</span></span><b>${pkr(i.q*(i.r+i.k))}</b></div>`).join('')}
+  <hr style="border:0;border-top:1px solid var(--line);width:100%"><div style="${rw}"><b>Total</b><b>${pkr(o.total)}</b></div><div style="${rw}"><span>Mila</span><span>${pkr(paid(o))}</span></div><div style="${rw}"><b>Baqaya</b><b>${pkr(d)}</b></div></div>
+  <a href="https://wa.me/?text=${encodeURIComponent(billText(o))}" target="_blank" rel="noopener" style="text-decoration:none"><button style="width:100%">WhatsApp par bhejein</button></a>
+  <button class="s g" onclick="cpy()">Bill ka text copy karein</button><button class="s g" onclick="go('orders')">Wapas</button>`}
+function cpy(){try{navigator.clipboard.writeText(billText(S.orders.find(x=>x.id===BID))).then(()=>alert('Copy ho gaya'),()=>alert('Copy nahi hua'))}catch(e){alert('Copy nahi hua')}}
+function udhaar(){
+  const by={};S.orders.forEach(o=>{const d=o.total-paid(o);if(d>0){(by[o.cid]=by[o.cid]||{d:0,n:0}).d+=d;by[o.cid].n++;if(o.promise&&(!by[o.cid].p||o.promise<by[o.cid].p))by[o.cid].p=o.promise;if(o.status==='delivered')by[o.cid].dl=(by[o.cid].dl||0)+d}});
+  const rows=Object.entries(by).sort((a,b)=>b[1].d-a[1].d),all=rows.reduce((s,r)=>s+r[1].d,0);
+  const nm=id=>S.customers.find(c=>c.id===id)||{name:'?'};
+  return `<h2>Udhaar</h2><div class="card t r"><span class="m">Kul baqaya</span><b>${pkr(all)}</b></div>${rows.length?'':'<p class="m">Kisi ka udhaar baqaya nahi.</p>'}
+  ${rows.map(([id,r])=>`<div class="card"><b>${esc(nm(id).name)}</b><span class="m">${nm(id).phone?esc(nm(id).phone)+' | ':''}${r.n} order | Baqaya ${pkr(r.d)}${r.dl?' | delivered ka baqaya '+pkr(r.dl):''}</span>${r.p?`<span style="color:${r.p<day0()?'var(--coral)':'var(--muted)'}">Wada: ${new Date(r.p).toLocaleDateString('en-GB')}${r.p<day0()?' (guzar gaya)':''}</span>`:''}<input id="ua${id}" type="number" inputmode="numeric" placeholder="Rakam (Rs)"><div class="row"><button class="s y" onclick="payC('${id}',${r.d})">Wasool karein</button><button class="s" onclick="payC('${id}',${r.d},1)">Saara ${pkr(r.d)}</button></div></div>`).join('')}`;
+}
+function payC(id,due,all){let a=all?due:Math.round(Number(val('ua'+id)));if(!(a>0))return;a=Math.min(a,due);
+  S.orders.filter(o=>o.cid===id&&o.total>paid(o)).forEach(o=>{const x=Math.min(a,o.total-paid(o));if(x>0){o.pay.push({a:x,at:Date.now()});a-=x}});save();render()}
+function kharcha(){const t0=day0(),L=[...S.expenses].reverse(),td=S.expenses.filter(e=>e.at>=t0).reduce((s,e)=>s+e.a,0);
+  return `<h2>Kharcha</h2><div class="card"><input id="et" placeholder="Kis cheez ka (jaise bijli, soap)"><input id="ea" type="number" inputmode="numeric" placeholder="Rakam (Rs)"><button onclick="addE()">Kharcha save karein</button></div>
+  <div class="card t r"><span class="m">Aaj ka kharcha</span><b>${pkr(td)}</b></div>${L.length?'':'<p class="m">Abhi koi kharcha nahi.</p>'}
+  ${L.map(e=>`<div class="card"><b>${esc(e.t)} - ${pkr(e.a)}</b><span class="m">${new Date(e.at).toLocaleDateString('en-GB')}</span><button class="s c" onclick="delE('${e.id}')">Hata dein</button></div>`).join('')}`}
+function addE(){const t=val('et'),a=Math.round(Number(val('ea')));if(!t||!(a>0))return;S.expenses.push({id:uid(),t,a,at:Date.now()});save();render()}
+function delE(id){S.expenses=S.expenses.filter(e=>e.id!==id);save();render()}
+let RP='month';
+const rng=()=>{const n=new Date(),d0=day0();return RP==='today'?d0:RP==='week'?d0-6*864e5:RP==='month'?new Date(n.getFullYear(),n.getMonth(),1).getTime():0};
+function reports(){
+  const a=rng(),O=S.orders.filter(o=>o.at>=a),B=O.reduce((s,o)=>s+o.total,0);
+  const P=S.orders.flatMap(o=>o.pay).filter(p=>p.at>=a).reduce((s,p)=>s+p.a,0),X=S.expenses.filter(e=>e.at>=a).reduce((s,e)=>s+e.a,0);
+  const ud=S.orders.reduce((s,o)=>s+o.total-paid(o),0),it={},sv={};
+  O.forEach(o=>o.items.forEach(i=>{const v=i.q*(i.r+i.k),k=i.g+' - '+SV[i.s];it[k]=it[k]||{q:0,v:0};it[k].q+=i.q;it[k].v+=v;sv[i.s]=sv[i.s]||{q:0,v:0};sv[i.s].q+=i.q;sv[i.s].v+=v}));
+  const top=Object.entries(it).sort((x,y)=>y[1].v-x[1].v).slice(0,10),sl=Object.entries(sv);
+  const t=(l,x,c)=>`<div class="card t ${c||''}"><span class="m">${l}</span><b>${x}</b></div>`,rw='display:flex;justify-content:space-between;gap:8px';
+  return `<h2>Reports</h2><div class="row">${[['today','Aaj'],['week','7 din'],['month','Is mahine'],['all','Sab']].map(([k,l])=>`<button class="chip ${RP===k?'on':''}" onclick="RP='${k}';render()">${l}</button>`).join('')}</div>
+  <div class="grid">${t('Orders',O.length)}${t('Bill ka total',pkr(B))}${t('Wasooli (mila)',pkr(P))}${t('Kharcha',pkr(X),'r')}${t('Wasooli minus kharcha',pkr(P-X),P-X<0?'r':'y')}${t('Kul udhaar baqaya (abhi tak)',pkr(ud),'r')}</div>
+  <div class="card"><b>Service ke hisaab se</b>${sl.length?sl.map(([k,v])=>`<div style="${rw}"><span>${SV[k]} (${v.q} piece)</span><b>${pkr(v.v)}</b></div>`).join(''):'<span class="m">Is muddat mein koi order nahi.</span>'}</div>
+  <div class="card"><b>Sab se zyada kamai wale items</b>${top.length?top.map(([k,v])=>`<div style="${rw}"><span>${esc(k)} (${v.q})</span><b>${pkr(v.v)}</b></div>`).join(''):'<span class="m">Is muddat mein koi order nahi.</span>'}</div>
+  <p class="m">Wasooli us muddat mein mila hua paisa hai, chahe order purana ho. Bill ka total sirf us muddat ke naye orders ka hai.</p>`}
+let CV=null,CP='all';
+const cs=id=>{const O=S.orders.filter(o=>o.cid===id);return{n:O.length,d:O.reduce((s,o)=>s+o.total-paid(o),0)}};
+function cust(){
+  const c=S.customers.find(x=>x.id===CV);if(!c)return '<button onclick="go(\'customers\')">Wapas</button>';
+  const n=new Date(),a=CP==='month'?new Date(n.getFullYear(),n.getMonth(),1).getTime():0;
+  const O=S.orders.filter(o=>o.cid===c.id&&o.at>=a),dv=O.filter(o=>o.status==='delivered').length,B=O.reduce((s,o)=>s+o.total,0),P=O.reduce((s,o)=>s+paid(o),0);
+  const t=(l,x,k)=>`<div class="card t ${k||''}"><span class="m">${l}</span><b>${x}</b></div>`;
+  return `<h2>${esc(c.name)}</h2><span class="m">${esc(c.phone||'')} | Suit code: <b>${esc(tag(c))}</b></span>
+  <div class="row">${[['month','Is mahine'],['all','Sab']].map(([k,l])=>`<button class="chip ${CP===k?'on':''}" onclick="CP='${k}';render()">${l}</button>`).join('')}</div>
+  <div class="grid">${t('Kul orders',O.length)}${t('Delivered',dv)}${t('Abhi process mein',O.length-dv,'y')}${t('Bill ka total',pkr(B))}${t('Ab tak mila',pkr(P))}${t('Baqaya (pending)',pkr(B-P),'r')}</div>
+  ${O.length?'':'<p class="m">Is muddat mein koi order nahi.</p>'}
+  ${[...O].reverse().map(o=>{const d=o.total-paid(o);return `<div class="card"><b>Bill #${S.orders.indexOf(o)+1} | ${new Date(o.at).toLocaleDateString('en-GB')} | ${SL[o.status]}</b><span class="m">${o.items.map(i=>i.q+' x '+esc(i.g)+' ('+SV[i.s]+')').join(', ')}</span><span class="m">Total ${pkr(o.total)} | Mila ${pkr(paid(o))} | Baqaya ${pkr(d)}</span>${d>0&&o.status==='delivered'?'<span style="color:var(--coral)">Delivered, baqaya baqi</span>':''}<div class="row"><button class="s g" onclick="BID='${o.id}';go('bill')">Bill dekhein</button>${d>0?`<button class="s y" onclick="payD('${o.id}')">Baqaya ${pkr(d)} wasool</button>`:''}</div></div>`}).join('')}
+  <button class="s g" onclick="go('customers')">Wapas</button>`}
+let BM='',RC=false;
+const TA='width:100%;box-sizing:border-box;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13px';
+function backup(){
+  return `<h2>Backup / Restore</h2>${BM?`<div class="card t y"><b>${esc(BM)}</b></div>`:''}
+  <div class="card"><b>Backup</b><span class="m">Aakhri backup: ${S.lb?new Date(S.lb).toLocaleDateString('en-GB'):'abhi tak nahi'}. Neeche ka text copy karke WhatsApp (apne aap ko) ya Notes mein save kar lein.</span><textarea id="bk" readonly rows="5" style="${TA}">${esc(JSON.stringify(S))}</textarea><button onclick="cpB()">Backup copy karein</button></div>
+  <div class="card"><b>Restore</b><span class="m">Dhyan: is se mojooda data badal jayega.</span><textarea id="rs2" rows="5" placeholder="Yahan backup ka text paste karein" style="${TA}">${esc(RT)}</textarea>${RC?'<span style="color:var(--coral)">Pakka? Mojooda data hat kar backup wala data aa jayega.</span><button class="c" onclick="rsB()">Haan, restore karein</button><button class="s g" onclick="RC=false;render()">Nahi</button>':'<button class="c" onclick="RC=true;BM=\'\';keep();render()">Restore karein</button>'}</div>
+  <button class="s g" onclick="go('home')">Wapas</button>`}
+let RT='';const keep=()=>{const e=document.getElementById('rs2');if(e)RT=e.value};
+function cpB(){const t=document.getElementById('bk');t.select();let ok=false;try{ok=document.execCommand('copy')}catch(e){}
+  if(ok){S.lb=Date.now();save();BM='Backup copy ho gaya. Ab usay WhatsApp ya Notes mein paste karke save kar lein.'}else BM='Copy nahi hua. Text par long press karke Select all, phir Copy karein.';render()}
+function rsB(){keep();const v=RT.trim();let d=null;try{d=JSON.parse(v)}catch(e){}
+  if(!d||!Array.isArray(d.customers)||!Array.isArray(d.rates)||!Array.isArray(d.orders)){RC=false;BM='Yeh sahi backup nahi hai. Poora text paste karein.';render();return}
+  d.expenses=d.expenses||[];S=d;save();RC=false;BM='Restore ho gaya.';RT='';render()}
+function render(){
+  const V={home,orders,customers,rates,new:newOrder,bill,udhaar,kharcha,reports,cust,backup};
+  document.getElementById('v').innerHTML=V[tab]();
+  document.getElementById('nav').innerHTML=[['home','Home'],['orders','Orders'],['customers','Customers'],['rates','Rates'],['udhaar','Udhaar'],['kharcha','Kharcha'],['reports','Reports']].map(([k,l])=>`<button class="${tab===k?'on':''}" onclick="go('${k}')">${l}</button>`).join('');
+  if(tab==='new')upd();
+}
+render();
+</script>
+<script>if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(function(){})</script>
+</body>
+</html>
